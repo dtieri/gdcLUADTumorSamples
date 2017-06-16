@@ -1,0 +1,369 @@
+##Library innitialization
+```{r}
+library(TCGAbiolinks)
+library(SummarizedExperiment)
+library(data.table)
+library(dplyr)
+library(DT)
+library(survival)
+
+
+#library("categoryCompare")
+#library("GO.db")
+#library("KEGG.db")
+```
+
+##Download data, prepare data into matrix, normalize, filter
+```{r}
+CancerProject <- "TCGA-LUSC"
+
+query <- GDCquery(project = CancerProject,
+                  data.category = "Transcriptome Profiling",
+                  data.type = "Gene Expression Quantification", 
+                  workflow.type = "HTSeq - Counts")
+
+samplesDown <- getResults(query,cols=c("cases"))
+
+dataSmTP <- TCGAquery_SampleTypes(barcode = samplesDown,
+                                  typesample = "TP")
+
+#dataSmNT <- TCGAquery_SampleTypes(barcode = samplesDown,typesample = "NT")
+
+#dataSmTPNT<-TCGAquery_MatchedCoupledSampleTypes(barcode = samplesDown,c("NT","TP"))
+
+#dataSmTPNT<-TCGAquery_MatchedCoupledSampleTypes(barcode = samplesDown,c("NT","TP"))
+
+
+
+queryDown <- GDCquery(project = CancerProject, 
+                      data.category = "Transcriptome Profiling",
+                      data.type = "Gene Expression Quantification", 
+                      workflow.type = "HTSeq - Counts", 
+                      barcode = dataSmTP)
+                    
+GDCdownload(query = queryDown)
+
+# get indexed clinical data
+dataClin <- GDCquery_clinic(project = CancerProject, "Clinical")
+
+# get subtype information
+dataSubt <- TCGAquery_subtype(tumor = "LUSC")
+
+dataPrep <- GDCprepare(query = queryDown, 
+                       save = TRUE, 
+                       save.filename="dataPrep.rda")
+
+#get subtype information
+#dataSubt <- TCGAquery_subtype(tumor = "BRCA")
+
+#dataPrep <- subset(dataPrep, select = colData(dataPrep)$patient %in% dataSubt$patient)
+
+dataPrep2 <- TCGAanalyze_Preprocessing(object = dataPrep, 
+                                      cor.cut = 0.6,
+                                      datatype = "HTSeq - Counts")                      
+
+dataNorm <- TCGAanalyze_Normalization(tabDF = dataPrep2,
+                                      geneInfo = geneInfoHT,
+                                      method = "gcContent")
+
+#boxplot(dataPrep, outline = FALSE)
+
+dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm, method = "quantile", qnt.cut =  0.2)  
+
+#dataFilt1 <- TCGAanalyze_Filtering(tabDF = dataNorm,method = "varFilter")
+#dataFilt2 <- TCGAanalyze_Filtering(tabDF = dataFilt1,method = "filter1")
+#dataFilt <- TCGAanalyze_Filtering(tabDF = dataFilt2,method = "filter2")
+
+dim(dataPrep2)
+
+#--------------Find MAF gene-------------------------------------
+grep("ENSG00000178573",row.names(dataFilt))
+#dataNorm[grep("ENSG00000178573",row.names(dataNorm)),]
+#dataFilt[grep("ENSG00000178573",row.names(dataFilt)),]
+
+```
+
+
+##Calculate Survival Object using dataClin
+```{r}
+#dataSurv <- TCGAanalyze_Survival(clinical_patient = dataClin,
+#                                   dataGE = dataFilt,
+#                                   Genelist = rownames(dataFilt),
+#                                   Survresult = FALSE,
+#                                   ThreshTop = 0.67,
+#                                   ThreshDown = 0.33,
+#                                   p.cut = 0.05)
+
+time <- 0
+for(ii in 1:length(dataClin$vital_status)){
+  if(dataClin$vital_status[ii]=="alive")
+    time[ii]<-dataClin$days_to_last_follow_up[ii]
+  else
+    time[ii]<-dataClin$days_to_death[ii]
+}
+length(time)
+
+status<-0;
+for(ii in 1:length(dataClin$vital_status)){
+  if(dataClin$vital_status[ii]=="alive")
+    status[ii] <- 0
+  else
+    status[ii] <- 1
+}
+survObj<-Surv(time,status)
+dim(survObj)
+
+length(survObj)
+
+MAF<-dataFilt[grep("ENSG00000178573",row.names(dataFilt)),]
+
+d <- dist(MAF, method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward.D") 
+plot(fit)
+grouping <- cutree(fit, k=2)
+max1=max(MAF[which(grouping==1)])
+max2=max(MAF[which(grouping==2)])
+if(max1 < max2) maxSmallCluster<-max1 else maxSmallCluster<-max2
+maxSmallCluster<-max1
+MAFStatus=0;
+for(ii in 1:length(MAF)){
+  if(MAF[ii] <= maxSmallCluster)
+    MAFStatus[ii] <- "Low MAF"
+  else
+    MAFStatus[ii] <- "High MAF"
+}
+length(MAFStatus)
+
+#Merges two data frames by a common coloumn!!!
+dataClin2 <- merge(dataClin,colData(dataPrep), by.x="bcr_patient_barcode", by.y="patient")
+
+```
+
+##Calculate Survival Object using colData(dataPrep)
+```{r}
+colnames(colData(dataPrep))
+
+#dataSurv <- TCGAanalyze_SurvivalKM(clinical_patient = dataClin,
+#                                   dataGE = dataFilt,
+#                                   Genelist = rownames(dataFilt),
+#                                   Survresult = FALSE,
+#                                   ThreshTop = 0.67,
+#                                   ThreshDown = 0.33,
+#                                   p.cut = 0.05)
+
+time <- 0
+for(ii in 1:length(colData(dataPrep)$vital_status)){
+  if(colData(dataPrep)$vital_status[ii]=="alive")
+    time[ii]<-colData(dataPrep)$days_to_last_follow_up[ii]
+  else
+    time[ii]<-colData(dataPrep)$days_to_death[ii]
+}
+length(time)
+
+status<-0;
+for(ii in 1:length(colData(dataPrep)$vital_status)){
+  if(colData(dataPrep)$vital_status[ii]=="alive")
+    status[ii] <- 0
+  else
+    status[ii] <- 1
+}
+
+survObj<-Surv(time,status)
+```
+
+##Cluster based on high and low MAF
+```{r}
+MAF<-dataFilt[grep("ENSG00000178573",row.names(dataFilt)),]
+
+d <- dist(MAF, method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward.D") 
+plot(fit)
+grouping <- cutree(fit, k=2)
+max1=max(MAF[which(grouping==1)])
+max2=max(MAF[which(grouping==2)])
+if(max1 < max2) maxSmallCluster<-max1 else maxSmallCluster<-max2
+MAFStatus=0;
+for(ii in 1:length(MAF)){
+  if(MAF[ii] <= maxSmallCluster)
+    MAFStatus[ii] <- "Low MAF"
+  else
+    MAFStatus[ii] <- "High MAF"
+}
+
+length(MAFStatus)
+length(grep("Low MAF", MAFStatus))
+length(grep("High MAF", MAFStatus))
+
+
+#pdf("survivalDifferentMAF.pdf")
+sfit <- survfit(survObj~MAFStatus,data=colData(dataPrep))
+plotColor<-c("red","black")
+
+plot(sfit, xlim = c(0,4500) , ylim = c(0,1) , main="Survival Time", xlab="days to Death", col=plotColor,lwd=2)
+legend(1500, 1, legend=sort(unique(MAFStatus)),
+       col=plotColor, lty=1:1, cex=0.8, lwd=2)
+#dev.off()
+
+survdiff(survObj~MAFStatus,data=colData(dataPrep))
+```
+
+##Cluster into patient groups
+```{r}
+#-----------------------HC cluster-------------------------
+data_Hc1 <- TCGAanalyze_Clustering(tabDF = t(dataFilt),
+                                   method = "hclust",
+                                   methodHC = "ward.D2")
+
+cluster <- data.frame("groupsHC" = cutree(data_Hc1,k=4))
+
+cluster$groupsHC <- paste0("EC",cluster$groupsHC)
+
+cluster$patient <-  substr(colData(dataPrep)$patient,1,12)
+
+#-----------------------Consensus cluster-------------------------
+#data_Hc2 <- TCGAanalyze_Clustering(tabDF = t(dataFilt),
+#                                   method = "consensus",
+#                                   methodHC = "ward.D2") 
+
+#cluster <- data.frame("groupsHC" = data_Hc2[[4]]$consensusClass)
+
+#cluster$groupsHC <- paste0("EC",cluster$groupsHC)
+
+#cluster$patient <-  substr(colData(dataPrep)$patient,1,12)
+
+#-------Add information about gropus from clustering in clinical data---------
+dataClin <- merge(dataClin,cluster, by.x="bcr_patient_barcode", by.y="patient")
+
+#---------------Merge subtype and clinical data-------------------------------------
+clin_subt <- merge(dataClin,dataSubt, by.x="bcr_patient_barcode", by.y="patient")
+clin_subt_all <- merge(dataClin,dataSubt, 
+                       by.x="bcr_patient_barcode", by.y="patient", all.x = TRUE)
+
+#----------- VISUALIZE --------------------
+# plotting survival for groups EC1, EC2, EC3, EC4
+TCGAanalyze_survival(data = clin_subt_all,
+                     clusterCol = "groupsHC",
+                     main = "TCGA kaplan meier survival plot from consensus cluster",
+                     legend = "RNA Group",
+                     color = c("black","red","blue","green3"),
+                     filename = "case2_surv.png")
+
+```
+
+##Differential expression between clusters of cases corresponding to good and bad prognosis
+```{r}
+dataDEGs <- TCGAanalyze_DEA(mat1 = dataFilt[,rownames(cluster[grep("EC1",cluster$groupsHC),])],
+                            mat2 = dataFilt[,rownames(cluster[grep("EC4",cluster$groupsHC),])],
+                            Cond1type = "Bad Prognosis",
+                            Cond2type = "Good Prognosis",
+                            fdr.cut = 0.01 ,
+                            logFC.cut = 1,
+                            method = "glmLRT") 
+
+dim(dataDEGs)
+dim(dataFilt)
+```
+##Gene annotations and ontology
+```{r}
+library(biomaRt)
+library(org.Hs.eg.db)
+library(topGO)
+
+row.names(dataDEGs) 
+
+dim(dataDEGs)
+
+inUniverse = row.names(dataFilt)
+inSelection = row.names(dataDEGs) 
+alg <- ifelse(inUniverse %in% inSelection, 1, 0)
+#or
+#alg <- factor(as.integer(inUniverse %in% inSelection))
+names(alg) <- row.names(dataFilt)
+
+GOdata <- new("topGOdata", ontology = "BP", allGenes = alg, geneSel = function(b) {return(b == 1)}, description = "Test", annot = annFUN.org, mapping = "org.Hs.eg.db", 
+    ID = "Ensembl")
+
+resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+topTable<-GenTable(GOdata, classicFisher = resultFisher, topNodes = 50)
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 10, useInfo ='all')
+printGraph(GOdata, resultFisher, firstSigNodes = 10, fn.prefix = "tGO", useInfo = "all", pdfSW = TRUE)
+
+
+topTable
+myterms = c("GO:0043062", "GO:0051239")
+GOgenes <- genesInTerm(GOdata, myterms)
+mygenes<-lapply(GOgenes,function(b) {return(b[b %in% sigGenes(GOdata)])})
+mygenes
+```
+
+##Cluster into gene groups
+```{r}
+#-----------------------HC cluster-------------------------
+data_Hc3 <- TCGAanalyze_Clustering(tabDF = dataFilt,
+                                   method = "hclust",
+                                   methodHC = "ward.D2")
+
+cluster <- data.frame("groupsHC" = cutree(data_Hc1,k=10))
+
+cluster$groupsHC <- paste0("EC",cluster$groupsHC)
+
+cluster$patient <-  substr(colData(dataPrep)$patient,1,12)
+
+
+#-------Add information about gropus from clustering in clinical data---------
+dataClin <- merge(dataClin,cluster, by.x="bcr_patient_barcode", by.y="patient")
+
+#---------------Merge subtype and clinical data-------------------------------------
+clin_subt <- merge(dataClin,dataSubt, by.x="bcr_patient_barcode", by.y="patient")
+clin_subt_all <- merge(dataClin,dataSubt, 
+                       by.x="bcr_patient_barcode", by.y="patient", all.x = TRUE)
+
+#----------- VISUALIZE --------------------
+# plotting survival for groups EC1, EC2, EC3, EC4
+TCGAanalyze_survival(data = clin_subt_all,
+                     clusterCol = "groupsHC",
+                     main = "TCGA kaplan meier survival plot from consensus cluster",
+                     legend = "RNA Group",
+                     color = c("black","red","blue","green3"),
+                     filename = "case2_surv.png")
+
+```
+
+##Heatmap
+```{r}
+
+dim(dataClin)
+dim(dataClin[,c("bcr_patient_barcode","groupsHC")])
+dim(t(dataFilt))
+TCGAvisualize_Heatmap(t(dataFilt),
+                      col.metadata =  dataClin[,c("bcr_patient_barcode","groupsHC")],
+                      col.colors =  list(
+                          groupsHC = c("EC1"="black",
+                                       "EC2"="red",
+                                       "EC3"="blue",
+                                       "EC4"="green3")),
+                      sortCol = "groupsHC",
+                      type = "expression", # sets default color
+                      scale = "row", # use z-scores for better visualization
+                      title = "Heatmap from concensus cluster", 
+                      filename = "case2_Heatmap.pdf",
+                      cluster_rows = TRUE)
+
+TCGAvisualize_Heatmap(t(dataFilt),
+                      col.metadata = clin_subt_all,
+                      sortCol = "groupsHC",
+                      type = "expression", # sets default color
+                      scale = "row", # use z-scores for better visualization
+                      title = "Heatmap from concensus cluster", 
+                      filename = "case2_Heatmap.pdf",
+                      cluster_rows = TRUE)
+```
+```{r}
+groupsHC = c("EC1"="black",
+                                       "EC2"="red",
+                                       "EC3"="blue",
+                                       "EC4"="green3")
+groupsHC
+```
+
+
