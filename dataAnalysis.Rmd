@@ -11,17 +11,28 @@ library(survival)
 #library("categoryCompare")
 #library("GO.db")
 #library("KEGG.db")
+<<<<<<< HEAD
 
+=======
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 ```
 
 ##Download data, prepare data into matrix, normalize, filter
 ```{r}
+<<<<<<< HEAD
 CancerProject <- "TCGA-LUAD"
+=======
+CancerProject <- "TCGA-LUSC"
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 query <- GDCquery(project = CancerProject,
                   data.category = "Transcriptome Profiling",
                   data.type = "Gene Expression Quantification", 
+<<<<<<< HEAD
                   workflow.type = "HTSeq - FPKM")
+=======
+                  workflow.type = "HTSeq - Counts")
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 samplesDown <- getResults(query,cols=c("cases"))
 
@@ -39,17 +50,28 @@ dataSmTP <- TCGAquery_SampleTypes(barcode = samplesDown,
 queryDown <- GDCquery(project = CancerProject, 
                       data.category = "Transcriptome Profiling",
                       data.type = "Gene Expression Quantification", 
+<<<<<<< HEAD
                       workflow.type = "HTSeq - FPKM", 
                       barcode = dataSmTP)
 
 GDCdownload(query = queryDown)
 #GDCdownload(query = queryDown,method = "client",chunks.per.download = 10)
+=======
+                      workflow.type = "HTSeq - Counts", 
+                      barcode = dataSmTP)
+                    
+GDCdownload(query = queryDown)
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 # get indexed clinical data
 dataClin <- GDCquery_clinic(project = CancerProject, "Clinical")
 
 # get subtype information
+<<<<<<< HEAD
 dataSubt <- TCGAquery_subtype(tumor = "LUAD")
+=======
+dataSubt <- TCGAquery_subtype(tumor = "LUSC")
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 dataPrep <- GDCprepare(query = queryDown, 
                        save = TRUE, 
@@ -62,6 +84,7 @@ dataPrep <- GDCprepare(query = queryDown,
 
 dataPrep2 <- TCGAanalyze_Preprocessing(object = dataPrep, 
                                       cor.cut = 0.6,
+<<<<<<< HEAD
                                       datatype = "HTSeq - FPKM")                      
 
 #dataNorm <- TCGAanalyze_Normalization(tabDF = dataPrep2,
@@ -71,17 +94,32 @@ dataPrep2 <- TCGAanalyze_Preprocessing(object = dataPrep,
 #boxplot(dataPrep, outline = FALSE)
 
 dataFilt <- TCGAanalyze_Filtering(tabDF = dataPrep2, method = "quantile", qnt.cut =  0.1)  
+=======
+                                      datatype = "HTSeq - Counts")                      
+
+dataNorm <- TCGAanalyze_Normalization(tabDF = dataPrep2,
+                                      geneInfo = geneInfoHT,
+                                      method = "gcContent")
+
+#boxplot(dataPrep, outline = FALSE)
+
+dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm, method = "quantile", qnt.cut =  0.2)  
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 #dataFilt1 <- TCGAanalyze_Filtering(tabDF = dataNorm,method = "varFilter")
 #dataFilt2 <- TCGAanalyze_Filtering(tabDF = dataFilt1,method = "filter1")
 #dataFilt <- TCGAanalyze_Filtering(tabDF = dataFilt2,method = "filter2")
 
+<<<<<<< HEAD
 dim(dataFilt)
 
 
 write.table(scale(dataFilt, center = TRUE, scale = TRUE), file = "LUADGeneTable.csv", sep = ",", col.names = NA, qmethod = "double")
 
 #write.table(dataFilt, file = "~/pythonCode/bio_corex/test/LUADGeneTable.csv", sep = ",", col.names = NA, qmethod = "double")
+=======
+dim(dataPrep2)
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 #--------------Find MAF gene-------------------------------------
 grep("ENSG00000178573",row.names(dataFilt))
@@ -90,6 +128,7 @@ grep("ENSG00000178573",row.names(dataFilt))
 
 ```
 
+<<<<<<< HEAD
 ##Filter and keep only differentially expressed genes
 ```{r}
 dataDEGs<-read.table(file = "DiffExpLUADTable.csv", sep = ",", header=TRUE, row.names=1)
@@ -231,6 +270,8 @@ mygenes
 
 ```
 
+=======
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 ##Calculate Survival Object using dataClin
 ```{r}
@@ -323,8 +364,11 @@ survObj<-Surv(time,status)
 ```{r}
 MAF<-dataFilt[grep("ENSG00000178573",row.names(dataFilt)),]
 
+<<<<<<< HEAD
 MAF
 
+=======
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 d <- dist(MAF, method = "euclidean") # distance matrix
 fit <- hclust(d, method="ward.D") 
 plot(fit)
@@ -357,6 +401,7 @@ legend(1500, 1, legend=sort(unique(MAFStatus)),
 survdiff(survObj~MAFStatus,data=colData(dataPrep))
 ```
 
+<<<<<<< HEAD
 ##Pull out gene expression level from individual files, add gene expression to allCases
 ```{r}
 
@@ -410,6 +455,8 @@ ggsurvplot(sfit, data = colData(dataPrep),risk.table = TRUE, pval = TRUE)
 survdiff(survObj~grouping2,data=colData(dataPrep))
 ```
 
+=======
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 ##Cluster into patient groups
 ```{r}
 #-----------------------HC cluster-------------------------
@@ -423,8 +470,11 @@ cluster$groupsHC <- paste0("EC",cluster$groupsHC)
 
 cluster$patient <-  substr(colData(dataPrep)$patient,1,12)
 
+<<<<<<< HEAD
 cluster
 
+=======
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 #-----------------------Consensus cluster-------------------------
 #data_Hc2 <- TCGAanalyze_Clustering(tabDF = t(dataFilt),
 #                                   method = "consensus",
@@ -489,6 +539,7 @@ GOdata <- new("topGOdata", ontology = "BP", allGenes = alg, geneSel = function(b
     ID = "Ensembl")
 
 resultFisher <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
+<<<<<<< HEAD
 resultT <- runTest(GOdata, algorithm = "classic", statistic = "ks")
 topTable<-GenTable(GOdata, classicFisher = resultFisher, topNodes = 50)
 showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 5, useInfo ='all')
@@ -498,6 +549,15 @@ write.table(topTable, file = "topTablePatient.csv", sep = ",", col.names = NA, q
 
 topTable
 myterms = c("GO:0045088", "GO:0050776")
+=======
+topTable<-GenTable(GOdata, classicFisher = resultFisher, topNodes = 50)
+showSigOfNodes(GOdata, score(resultFisher), firstSigNodes = 10, useInfo ='all')
+printGraph(GOdata, resultFisher, firstSigNodes = 10, fn.prefix = "tGO", useInfo = "all", pdfSW = TRUE)
+
+
+topTable
+myterms = c("GO:0043062", "GO:0051239")
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 GOgenes <- genesInTerm(GOdata, myterms)
 mygenes<-lapply(GOgenes,function(b) {return(b[b %in% sigGenes(GOdata)])})
 mygenes
@@ -506,19 +566,39 @@ mygenes
 ##Cluster into gene groups
 ```{r}
 #-----------------------HC cluster-------------------------
+<<<<<<< HEAD
 
 dim(dataFilt)
 
+=======
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 data_Hc3 <- TCGAanalyze_Clustering(tabDF = dataFilt,
                                    method = "hclust",
                                    methodHC = "ward.D2")
 
+<<<<<<< HEAD
 cluster <- data.frame("groupsHC" = cutree(data_Hc3,k=4))
 
 cluster$groupsHC <- paste0("EC",cluster$groupsHC)
 
 #drop=FALSE needed here because a one dimentional data frame is by default reduced to a vector when subsetted
 cluster[cluster$groupsHC=="EC2",,drop=FALSE]
+=======
+cluster <- data.frame("groupsHC" = cutree(data_Hc1,k=10))
+
+cluster$groupsHC <- paste0("EC",cluster$groupsHC)
+
+cluster$patient <-  substr(colData(dataPrep)$patient,1,12)
+
+
+#-------Add information about gropus from clustering in clinical data---------
+dataClin <- merge(dataClin,cluster, by.x="bcr_patient_barcode", by.y="patient")
+
+#---------------Merge subtype and clinical data-------------------------------------
+clin_subt <- merge(dataClin,dataSubt, by.x="bcr_patient_barcode", by.y="patient")
+clin_subt_all <- merge(dataClin,dataSubt, 
+                       by.x="bcr_patient_barcode", by.y="patient", all.x = TRUE)
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 
 #----------- VISUALIZE --------------------
 # plotting survival for groups EC1, EC2, EC3, EC4
@@ -526,6 +606,7 @@ TCGAanalyze_survival(data = clin_subt_all,
                      clusterCol = "groupsHC",
                      main = "TCGA kaplan meier survival plot from consensus cluster",
                      legend = "RNA Group",
+<<<<<<< HEAD
                      filename = "case3_surv.png")
 
 ```
@@ -670,6 +751,11 @@ colnames(dd1) <- c("time", "status")
 dd2<-cbind(dd1,t(dataFiltCluster))
 
 mm <- coxph(Surv(time, status)~., data = data.frame(dd2[,1:10]))
+=======
+                     color = c("black","red","blue","green3"),
+                     filename = "case2_surv.png")
+
+>>>>>>> 4ca77111257c2300e3fe9f4f1b3b76b9c966ea0b
 ```
 
 ##Heatmap
